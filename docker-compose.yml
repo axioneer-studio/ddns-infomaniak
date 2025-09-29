@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: "${container_name}"
     restart: unless-stopped
     environment:
       INFOMANIAK_DDNS_HOSTNAME: "${INFOMANIAK_DDNS_HOSTNAME_ENV}"
