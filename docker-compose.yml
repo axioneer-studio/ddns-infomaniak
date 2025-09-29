@@ -1,7 +1,9 @@
 services:
   ddns:
-    image: ghcr.io/laxe4k/ddns-infomaniak:latest
-    container_name: ddns-infomaniak
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
       INFOMANIAK_DDNS_HOSTNAME: "${INFOMANIAK_DDNS_HOSTNAME_ENV}"
       INFOMANIAK_DDNS_USERNAME: "${INFOMANIAK_DDNS_USERNAME_ENV}"
@@ -9,6 +11,5 @@ services:
       DDNS_INTERVAL_SECONDS: "300"
       DDNS_ENABLE_IPV6: "false"
       PYTHONUNBUFFERED: "1"
-    restart: unless-stopped
 
     network_mode: host
