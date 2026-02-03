@@ -51,19 +51,22 @@
 
 ### 🐳 Option 1 : Docker Compose (recommandé)
 
+1. Créez un fichier `.env` avec vos identifiants (voir section [Configuration](#️-configuration))
+
+2. Créez un fichier `docker-compose.yml` :
+
 ```yaml
 services:
   ddns:
     image: ghcr.io/axioneer-studio/ddns-infomaniak:latest
     container_name: ddns-infomaniak
     restart: unless-stopped
-    environment:
-      INFOMANIAK_DDNS_HOSTNAME: "ddns.example.com"
-      INFOMANIAK_DDNS_USERNAME: "votre-username"
-      INFOMANIAK_DDNS_PASSWORD: "votre-password"
-      DDNS_INTERVAL_SECONDS: "300"
-      DDNS_ENABLE_IPV6: "false"
+    env_file:
+      - .env
+    network_mode: host
 ```
+
+3. Lancez le service :
 
 ```bash
 docker compose up -d
@@ -269,6 +272,12 @@ docker run -e DDNS_LOG_LEVEL=DEBUG ... ghcr.io/axioneer-studio/ddns-infomaniak:l
 ---
 
 ## 📝 Changelog
+
+### v2.0.3
+
+- 🐳 Docker Compose simplifié avec `env_file`
+- 🔧 Nettoyage automatique des guillemets dans les variables d'environnement
+- 📝 Documentation mise à jour
 
 ### v2.0.0
 
