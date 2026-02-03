@@ -157,23 +157,32 @@ class DDNSConfig:
     @classmethod
     def from_env(cls) -> DDNSConfig:
         """Crée une configuration depuis les variables d'environnement."""
-        hostname = os.getenv("INFOMANIAK_DDNS_HOSTNAME", "").strip()
-        username = os.getenv("INFOMANIAK_DDNS_USERNAME", "").strip()
-        password = os.getenv("INFOMANIAK_DDNS_PASSWORD", "")
 
-        interval = int(os.getenv("DDNS_INTERVAL_SECONDS", "300"))
-        enable_ipv6 = os.getenv("DDNS_ENABLE_IPV6", "false").lower() in (
+        def clean_env(value: str) -> str:
+            """Nettoie une valeur d'environnement (supprime guillemets et espaces)."""
+            value = value.strip()
+            # Supprime les guillemets englobants si présents
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+                value = value[1:-1]
+            return value.strip()
+
+        hostname = clean_env(os.getenv("INFOMANIAK_DDNS_HOSTNAME", ""))
+        username = clean_env(os.getenv("INFOMANIAK_DDNS_USERNAME", ""))
+        password = clean_env(os.getenv("INFOMANIAK_DDNS_PASSWORD", ""))
+
+        interval = int(clean_env(os.getenv("DDNS_INTERVAL_SECONDS", "300")))
+        enable_ipv6 = clean_env(os.getenv("DDNS_ENABLE_IPV6", "false")).lower() in (
             "1",
             "true",
             "yes",
             "on",
         )
-        log_level = os.getenv("DDNS_LOG_LEVEL", "INFO").upper()
+        log_level = clean_env(os.getenv("DDNS_LOG_LEVEL", "INFO")).upper()
 
         # Paramètres avancés
-        timeout = int(os.getenv("DDNS_REQUEST_TIMEOUT", "15"))
-        max_retries = int(os.getenv("DDNS_MAX_RETRIES", "3"))
-        backoff = float(os.getenv("DDNS_RETRY_BACKOFF", "1.0"))
+        timeout = int(clean_env(os.getenv("DDNS_REQUEST_TIMEOUT", "15")))
+        max_retries = int(clean_env(os.getenv("DDNS_MAX_RETRIES", "3")))
+        backoff = float(clean_env(os.getenv("DDNS_RETRY_BACKOFF", "1.0")))
 
         return cls(
             hostname=hostname,
