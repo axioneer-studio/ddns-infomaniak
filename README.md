@@ -1,110 +1,277 @@
-# Infomaniak DDNS Updater (Python + Docker)
+# 🌐 Infomaniak DDNS Updater
 
-Service léger qui met automatiquement à jour votre enregistrement DNS Infomaniak avec votre IP publique actuelle. Fonctionne en continu, supporte IPv4 et (optionnel) IPv6.
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://github.com/axioneer-studio/ddns-infomaniak/pkgs/container/ddns-infomaniak)
+[![Python](https://img.shields.io/badge/Python-3.10+-yellow?logo=python)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-## Fonctionnalités
-- Récupération périodique de l’IP publique (IPv4 / IPv6)
-- Comparaison avec l’IP DNS existante et mise à jour uniquement si nécessaire
-- Intervalle configurable et protection anti-spam API
-- Exécutable en conteneur (Docker / Portainer) ou en Python natif
+Service léger et robuste qui met automatiquement à jour vos enregistrements DNS Infomaniak avec votre IP publique actuelle. Supporte IPv4 et IPv6.
 
-## Image Docker officielle (GHCR)
-L’image est construite et publiée automatiquement via GitHub Actions.
-- Registry: `ghcr.io/laxe4k/ddns-infomaniak`
-- Tags:
-  - `latest` (publie sur tag Git)
-  - `dev` (sur branches `dev/*`)
-  - `x.y.z` (correspondant aux tags Git)
+---
 
-Aucune construction locale n’est requise: il suffit de récupérer l’image et de configurer les variables d’environnement.
+## ✨ Fonctionnalités
 
-## Variables d’environnement
-- `INFOMANIAK_DDNS_HOSTNAME` (obligatoire) — Nom d’hôte complet à mettre à jour (ex: `sub.domaine.tld`)
-- `INFOMANIAK_DDNS_USERNAME` (obligatoire) — Identifiant/compte Infomaniak (ou token si applicable)
-- `INFOMANIAK_DDNS_PASSWORD` (obligatoire) — Mot de passe/token
-- `DDNS_INTERVAL_SECONDS` (optionnel, défaut: `300`) — Intervalle entre deux vérifications (min 15s). Recommandé ≥ 300s en prod.
-- `DDNS_ENABLE_IPV6` (optionnel, défaut: `false`) — Activer la gestion IPv6 (`true`/`false`)
-- `PYTHONUNBUFFERED` (optionnel) — Mettre `"1"` pour des logs non bufferisés (affichage immédiat)
+| Fonctionnalité | Description |
+|----------------|-------------|
+| 🔄 **Mise à jour automatique** | Détecte les changements d'IP et met à jour le DNS |
+| 🌍 **IPv4 & IPv6** | Support complet des deux protocoles |
+| 🛡️ **Résilient** | Retry automatique avec backoff exponentiel |
+| 🔀 **Failover IP** | Plusieurs services de détection IP en cas de panne |
+| 📊 **Métriques** | Statistiques de fonctionnement intégrées |
+| 🐳 **Docker ready** | Image optimisée, non-root, healthcheck |
+| ⚡ **Arrêt gracieux** | Gestion propre des signaux SIGTERM/SIGINT |
+| 📝 **Logging structuré** | Logs horodatés et niveaux configurables |
 
-Astuce Portainer: définissez des variables intermédiaires (ex: `INFOMANIAK_DDNS_HOSTNAME_ENV`) et référencez-les dans `docker-compose.yml` via `${…}`. Note: le `.env` du dépôt n’est pas lu automatiquement par Portainer; renseignez les variables dans la Stack.
+---
 
-## Démarrage rapide (Docker Compose / Portainer)
-Exemple minimal (valeurs en dur, syntaxe mapping recommandée):
+## 🚀 Démarrage rapide
+
+### Option 1: Docker Compose (recommandé)
+
+Créez un fichier ``docker-compose.yml`` :
 
 ```yaml
-version: "3.9"
 services:
   ddns:
-    image: ghcr.io/laxe4k/ddns-infomaniak:latest
+    image: ghcr.io/axioneer-studio/ddns-infomaniak:latest
     container_name: ddns-infomaniak
     restart: unless-stopped
     environment:
-      INFOMANIAK_DDNS_HOSTNAME: "example.domain.tld"
-      INFOMANIAK_DDNS_USERNAME: "mon-user"
-      INFOMANIAK_DDNS_PASSWORD: "mon-mot-de-passe-ou-token"
+      INFOMANIAK_DDNS_HOSTNAME: "mon-domaine.example.com"
+      INFOMANIAK_DDNS_USERNAME: "mon-identifiant"
+      INFOMANIAK_DDNS_PASSWORD: "mon-mot-de-passe"
       DDNS_INTERVAL_SECONDS: "300"
       DDNS_ENABLE_IPV6: "false"
-      PYTHONUNBUFFERED: "1"
 ```
 
-Exemple avec variables Portainer/Compose (références `${…}`), comme dans ce dépôt:
+Puis lancez :
+
+```bash
+docker compose up -d
+```
+
+### Option 2: Docker CLI
+
+```bash
+docker run -d \
+  --name ddns-infomaniak \
+  --restart unless-stopped \
+  -e INFOMANIAK_DDNS_HOSTNAME=mon-domaine.example.com \
+  -e INFOMANIAK_DDNS_USERNAME=mon-identifiant \
+  -e INFOMANIAK_DDNS_PASSWORD=mon-mot-de-passe \
+  -e DDNS_INTERVAL_SECONDS=300 \
+  ghcr.io/axioneer-studio/ddns-infomaniak:latest
+```
+
+### Option 3: Python natif
+
+```bash
+# Installation
+pip install -r requirements.txt
+
+# Configuration (Linux/macOS)
+export INFOMANIAK_DDNS_HOSTNAME="mon-domaine.example.com"
+export INFOMANIAK_DDNS_USERNAME="mon-identifiant"
+export INFOMANIAK_DDNS_PASSWORD="mon-mot-de-passe"
+
+# Lancement
+python main.py
+```
+
+---
+
+## ⚙️ Configuration
+
+### Variables d'environnement
+
+| Variable | Obligatoire | Défaut | Description |
+|----------|:-----------:|:------:|-------------|
+| ``INFOMANIAK_DDNS_HOSTNAME`` | ✅ | - | Nom d'hôte complet à mettre à jour (ex: ``ddns.example.com``) |
+| ``INFOMANIAK_DDNS_USERNAME`` | ✅ | - | Identifiant DDNS Infomaniak |
+| ``INFOMANIAK_DDNS_PASSWORD`` | ✅ | - | Mot de passe DDNS Infomaniak |
+| ``DDNS_INTERVAL_SECONDS`` | ❌ | ``300`` | Intervalle entre vérifications (min: 15s) |
+| ``DDNS_ENABLE_IPV6`` | ❌ | ``false`` | Activer la mise à jour IPv6 (``true``/``false``) |
+| ``DDNS_LOG_LEVEL`` | ❌ | ``INFO`` | Niveau de log (``DEBUG``, ``INFO``, ``WARNING``, ``ERROR``) |
+| ``DDNS_REQUEST_TIMEOUT`` | ❌ | ``15`` | Timeout des requêtes HTTP (secondes) |
+| ``DDNS_MAX_RETRIES`` | ❌ | ``3`` | Nombre de tentatives en cas d'échec |
+| ``DDNS_RETRY_BACKOFF`` | ❌ | ``1.0`` | Facteur de backoff exponentiel |
+
+### Configuration Infomaniak
+
+1. Connectez-vous à votre [Manager Infomaniak](https://manager.infomaniak.com)
+2. Accédez à **Domaines** → votre domaine → **DNS**
+3. Créez un enregistrement **DDNS** (Dynamic DNS)
+4. Notez le **hostname**, **username** et **password** générés
+
+---
+
+## 🐳 Image Docker
+
+### Registry
+
+L'image est publiée automatiquement sur GitHub Container Registry :
+
+```
+ghcr.io/axioneer-studio/ddns-infomaniak
+```
+
+### Tags disponibles
+
+| Tag | Description |
+|-----|-------------|
+| ``latest`` | Dernière version stable |
+| ``x.y.z`` | Version spécifique (ex: ``2.0.0``) |
+| ``dev`` | Branche de développement |
+
+### Caractéristiques de l'image
+
+- 🏗️ **Multi-stage build** : Image finale minimale (~50MB)
+- 👤 **Non-root** : Exécution sécurisée (UID 1000)
+- 🏥 **Healthcheck** : Surveillance automatique du processus
+- 🏷️ **Labels OCI** : Métadonnées standardisées
+
+---
+
+## 📋 Portainer / Stacks
+
+Pour Portainer, utilisez des variables de substitution :
 
 ```yaml
-version: "3.9"
 services:
   ddns:
-    image: ghcr.io/laxe4k/ddns-infomaniak:latest
+    image: ghcr.io/axioneer-studio/ddns-infomaniak:latest
     container_name: ddns-infomaniak
     restart: unless-stopped
     environment:
-      INFOMANIAK_DDNS_HOSTNAME: "${INFOMANIAK_DDNS_HOSTNAME_ENV}"
-      INFOMANIAK_DDNS_USERNAME: "${INFOMANIAK_DDNS_USERNAME_ENV}"
-      INFOMANIAK_DDNS_PASSWORD: "${INFOMANIAK_DDNS_PASSWORD_ENV}"
-      DDNS_INTERVAL_SECONDS: "60"   # pour tests; remettez 300+ en prod
+      INFOMANIAK_DDNS_HOSTNAME: "${DDNS_HOSTNAME}"
+      INFOMANIAK_DDNS_USERNAME: "${DDNS_USERNAME}"
+      INFOMANIAK_DDNS_PASSWORD: "${DDNS_PASSWORD}"
+      DDNS_INTERVAL_SECONDS: "300"
       DDNS_ENABLE_IPV6: "false"
-      PYTHONUNBUFFERED: "1"
 ```
 
-- Dans Portainer (Stacks): collez le Compose, définissez les variables `${…}` dans la section dédiée puis déployez.
-- Suivre les logs: `docker logs -f ddns-infomaniak`
+Définissez les variables ``DDNS_HOSTNAME``, ``DDNS_USERNAME`` et ``DDNS_PASSWORD`` dans la section **Environment** de votre Stack.
 
-## Démarrage rapide (Docker CLI)
-- Récupérer l’image: `docker pull ghcr.io/laxe4k/ddns-infomaniak:latest`
-- Lancer:
+---
+
+## 📊 Logs et monitoring
+
+### Consulter les logs
 
 ```bash
-docker run -d --name ddns-infomaniak --restart unless-stopped \
-  -e INFOMANIAK_DDNS_HOSTNAME=example.domain.tld \
-  -e INFOMANIAK_DDNS_USERNAME=mon-user \
-  -e INFOMANIAK_DDNS_PASSWORD=mon-mot-de-passe-ou-token \
-  -e DDNS_INTERVAL_SECONDS=300 \
-  -e DDNS_ENABLE_IPV6=false \
-  -e PYTHONUNBUFFERED=1 \
-  ghcr.io/laxe4k/ddns-infomaniak:latest
+# Logs en temps réel
+docker logs -f ddns-infomaniak
+
+# Dernières 100 lignes
+docker logs --tail 100 ddns-infomaniak
 ```
 
-## Exécution locale (facultatif, sans Docker)
-1) Prérequis: Python 3.13+ et `pip`
-2) Installation: `pip install -r requirements.txt`
-3) Exportez les variables d’environnement (voir plus haut)
-4) Lancer: `python main.py`
+### Format des logs
 
-## Détails de fonctionnement
-- Boucle continue avec intervalle configurable (min. 15s)
-- Validation IPv6 (si activée) via le module `ipaddress`
-- User-Agent dédié, gestion basique des réponses Infomaniak (`good`, `nochg`, `badauth`, etc.)
+```
+2026-02-03 14:30:00 | INFO    | ============================================================
+2026-02-03 14:30:00 | INFO    | DDNS Infomaniak - Démarrage du service
+2026-02-03 14:30:00 | INFO    | ============================================================
+2026-02-03 14:30:00 | INFO    | Hostname: mon-domaine.example.com
+2026-02-03 14:30:00 | INFO    | IPv6: désactivé
+2026-02-03 14:30:00 | INFO    | Intervalle: 300s
+2026-02-03 14:30:00 | INFO    | --- Vérification IPv4 ---
+2026-02-03 14:30:01 | INFO    | IP publique IPv4: 203.0.113.42
+2026-02-03 14:30:01 | INFO    | IP DNS actuelle: 203.0.113.10
+2026-02-03 14:30:01 | INFO    | Mise à jour DNS: mon-domaine.example.com -> 203.0.113.42
+2026-02-03 14:30:02 | INFO    | ✅ DNS mis à jour
+```
 
-## Sécurité
-- Ne versionnez pas votre fichier `.env` (contient des secrets). Utilisez Portainer (variables) ou un coffre.
-- Si des identifiants ont été exposés publiquement, changez-les immédiatement depuis votre compte Infomaniak.
+### Métriques affichées
 
-## Structure du projet
-- `main.py` — Point d’entrée, démarre le service en boucle
-- `models/ddns_client.py` — Client OOP Infomaniak DDNS (logique métier)
-- `docker-compose.yml` — Déploiement Docker/Portainer
-- `Dockerfile` — Image Docker
-- `requirements.txt` — Dépendances Python
-- `LICENSE`, `README.md`
+Toutes les 10 vérifications, un résumé est affiché :
 
-## Licence
-MIT — voir `LICENSE`.
+```
+📊 Uptime: 2.5h | Checks: 30 | Updates: 2 OK, 0 KO, 28 skip | IPv4: 203.0.113.42 | IPv6: N/A
+```
+
+---
+
+## 🔧 Architecture
+
+```
+ddns-infomaniak/
+├── main.py                 # Point d'entrée
+├── models/
+│   ├── __init__.py
+│   └── ddns_client.py      # Client DDNS (logique métier)
+├── Dockerfile              # Image Docker optimisée
+├── docker-compose.yml      # Exemple de déploiement
+├── requirements.txt        # Dépendances Python
+├── LICENSE                 # Licence MIT
+└── README.md               # Documentation
+```
+
+### Composants principaux
+
+| Classe | Rôle |
+|--------|------|
+| ``DDNSConfig`` | Configuration validée avec valeurs par défaut |
+| ``DDNSMetrics`` | Statistiques et compteurs de fonctionnement |
+| ``InfomaniakDDNSClient`` | Client principal avec boucle de mise à jour |
+| ``IPVersion`` | Enum pour IPv4/IPv6 |
+| ``UpdateResult`` | Résultat structuré des opérations |
+
+---
+
+## 🛡️ Sécurité
+
+- ⚠️ **Ne versionnez jamais** vos identifiants dans le code source
+- 🔐 Utilisez des **variables d'environnement** ou un gestionnaire de secrets
+- 🔄 Si des identifiants ont été exposés, **régénérez-les** immédiatement depuis le Manager Infomaniak
+- 👤 L'image Docker s'exécute en **utilisateur non-root** (UID 1000)
+
+---
+
+## 🐛 Dépannage
+
+### Erreurs courantes
+
+| Erreur | Cause | Solution |
+|--------|-------|----------|
+| ``badauth`` | Identifiants invalides | Vérifiez username/password dans Infomaniak |
+| ``nohost`` | Hostname inconnu | Vérifiez que l'enregistrement DDNS existe |
+| ``abuse`` | Trop de requêtes | Augmentez ``DDNS_INTERVAL_SECONDS`` |
+| ``911`` | Erreur serveur Infomaniak | Réessayez plus tard (automatique) |
+
+### Debug avancé
+
+```bash
+# Activer les logs DEBUG
+docker run -e DDNS_LOG_LEVEL=DEBUG ... ghcr.io/axioneer-studio/ddns-infomaniak:latest
+```
+
+---
+
+## 📝 Changelog
+
+### v2.0.0
+
+- ✨ Refactoring complet avec architecture orientée objet
+- 🔄 Retry automatique avec backoff exponentiel
+- 🔀 Failover entre plusieurs services de détection IP
+- 📊 Métriques et statistiques intégrées
+- 🛑 Arrêt gracieux sur SIGTERM/SIGINT
+- 📝 Logging structuré avec niveaux configurables
+- 🐳 Dockerfile multi-stage optimisé (non-root, healthcheck)
+- ⚙️ Nouvelles options de configuration avancées
+
+### v1.0.0
+
+- 🎉 Version initiale
+
+---
+
+## 📄 Licence
+
+MIT — voir [LICENSE](LICENSE)
+
+---
+
+## 🤝 Contribution
+
+Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
