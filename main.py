@@ -34,9 +34,15 @@ def main() -> int:
     except ValueError as exc:
         print(f"❌ Erreur de configuration: {exc}", file=sys.stderr)
         print("\nVariables d'environnement requises:", file=sys.stderr)
-        print("  - INFOMANIAK_DDNS_HOSTNAME", file=sys.stderr)
-        print("  - INFOMANIAK_DDNS_USERNAME", file=sys.stderr)
-        print("  - INFOMANIAK_DDNS_PASSWORD", file=sys.stderr)
+        print("  - Mode simple:", file=sys.stderr)
+        print("    INFOMANIAK_DDNS_HOSTNAME", file=sys.stderr)
+        print("    INFOMANIAK_DDNS_USERNAME", file=sys.stderr)
+        print("    INFOMANIAK_DDNS_PASSWORD", file=sys.stderr)
+        print("  - Mode multi-domaines:", file=sys.stderr)
+        print("    INFOMANIAK_DDNS_HOSTNAME_X", file=sys.stderr)
+        print("    INFOMANIAK_DDNS_USERNAME_X", file=sys.stderr)
+        print("    INFOMANIAK_DDNS_PASSWORD_X", file=sys.stderr)
+        print("    (X = 1, 2, 3, ...)", file=sys.stderr)
         return 1
 
     except KeyboardInterrupt:
