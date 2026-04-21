@@ -10,6 +10,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import os
+import re
 import signal
 import socket
 import sys
@@ -28,6 +29,15 @@ from urllib3.util.retry import Retry
 # =============================================================================
 
 logger = logging.getLogger("ddns-infomaniak")
+
+
+def clean_env(value: str) -> str:
+    """Nettoie une valeur d'environnement (supprime guillemets et espaces)."""
+    value = value.strip()
+    # Supprime les guillemets englobants si presents
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
+        value = value[1:-1]
+    return value.strip()
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -158,17 +168,20 @@ class DDNSConfig:
     def from_env(cls) -> DDNSConfig:
         """Crée une configuration depuis les variables d'environnement."""
 
-        def clean_env(value: str) -> str:
-            """Nettoie une valeur d'environnement (supprime guillemets et espaces)."""
-            value = value.strip()
-            # Supprime les guillemets englobants si présents
-            if len(value) >= 2 and value[0] == value[-1] and value[0] in ('"', "'"):
-                value = value[1:-1]
-            return value.strip()
+        configs = cls.from_env_list()
+        return configs[0]
 
-        hostname = clean_env(os.getenv("INFOMANIAK_DDNS_HOSTNAME", ""))
-        username = clean_env(os.getenv("INFOMANIAK_DDNS_USERNAME", ""))
-        password = clean_env(os.getenv("INFOMANIAK_DDNS_PASSWORD", ""))
+    @classmethod
+    def from_env_list(cls) -> list[DDNSConfig]:
+        """Crée une liste de configurations depuis les variables d'environnement."""
+
+        hostname_key_pattern = re.compile(r"^INFOMANIAK_DDNS_HOSTNAME_(\d+)$")
+        indexed_ids: set[int] = set()
+
+        for env_key in os.environ:
+            match = hostname_key_pattern.match(env_key)
+            if match:
+                indexed_ids.add(int(match.group(1)))
 
         interval = int(clean_env(os.getenv("DDNS_INTERVAL_SECONDS", "300")))
         enable_ipv6 = clean_env(os.getenv("DDNS_ENABLE_IPV6", "false")).lower() in (
@@ -184,17 +197,69 @@ class DDNSConfig:
         max_retries = int(clean_env(os.getenv("DDNS_MAX_RETRIES", "3")))
         backoff = float(clean_env(os.getenv("DDNS_RETRY_BACKOFF", "1.0")))
 
-        return cls(
-            hostname=hostname,
-            username=username,
-            password=password,
-            interval_seconds=interval,
-            enable_ipv6=enable_ipv6,
-            log_level=log_level,
-            request_timeout=timeout,
-            max_retries=max_retries,
-            retry_backoff_factor=backoff,
+        configs: list[DDNSConfig] = []
+
+        if indexed_ids:
+            for config_id in sorted(indexed_ids):
+                hostname = clean_env(
+                    os.getenv(f"INFOMANIAK_DDNS_HOSTNAME_{config_id}", "")
+                )
+                username = clean_env(
+                    os.getenv(f"INFOMANIAK_DDNS_USERNAME_{config_id}", "")
+                )
+                password = clean_env(
+                    os.getenv(f"INFOMANIAK_DDNS_PASSWORD_{config_id}", "")
+                )
+
+                missing_fields: list[str] = []
+                if not hostname:
+                    missing_fields.append(f"INFOMANIAK_DDNS_HOSTNAME_{config_id}")
+                if not username:
+                    missing_fields.append(f"INFOMANIAK_DDNS_USERNAME_{config_id}")
+                if not password:
+                    missing_fields.append(f"INFOMANIAK_DDNS_PASSWORD_{config_id}")
+
+                if missing_fields:
+                    joined_missing = ", ".join(missing_fields)
+                    raise ValueError(
+                        f"Configuration DDNS #{config_id} incomplète: {joined_missing}"
+                    )
+
+                configs.append(
+                    cls(
+                        hostname=hostname,
+                        username=username,
+                        password=password,
+                        interval_seconds=interval,
+                        enable_ipv6=enable_ipv6,
+                        log_level=log_level,
+                        request_timeout=timeout,
+                        max_retries=max_retries,
+                        retry_backoff_factor=backoff,
+                    )
+                )
+
+            return configs
+
+        hostname = clean_env(os.getenv("INFOMANIAK_DDNS_HOSTNAME", ""))
+        username = clean_env(os.getenv("INFOMANIAK_DDNS_USERNAME", ""))
+        password = clean_env(os.getenv("INFOMANIAK_DDNS_PASSWORD", ""))
+
+        configs.append(
+            cls(
+                hostname=hostname,
+                username=username,
+                password=password,
+                interval_seconds=interval,
+                enable_ipv6=enable_ipv6,
+                log_level=log_level,
+                request_timeout=timeout,
+                max_retries=max_retries,
+                retry_backoff_factor=backoff,
+            )
         )
+
+        return configs
 
 
 # =============================================================================
@@ -680,20 +745,80 @@ class InfomaniakDDNSClient:
         )
 
 
+class InfomaniakDDNSService:
+    """Orchestrateur pour exécuter plusieurs clients DDNS en parallèle logique."""
+
+    def __init__(self, clients: list[InfomaniakDDNSClient]) -> None:
+        if not clients:
+            raise ValueError("Aucune configuration DDNS valide trouvée")
+        self.clients: Final = clients
+
+    def run_forever(self) -> None:
+        """Exécute tous les clients DDNS dans une boucle unique."""
+        hostnames = ", ".join(client.config.hostname for client in self.clients)
+        logger.info("Configurations DDNS chargées: %d", len(self.clients))
+        logger.info("Hostnames: %s", hostnames)
+
+        intervals = {client.config.interval_seconds for client in self.clients}
+        interval_seconds = min(intervals)
+
+        if len(intervals) > 1:
+            logger.warning(
+                "Intervalles différents détectés (%s), utilisation du minimum: %ds",
+                sorted(intervals),
+                interval_seconds,
+            )
+
+        try:
+            while any(client._running for client in self.clients):
+                for client in self.clients:
+                    if not client._running:
+                        continue
+
+                    client._run_cycle()
+
+                    if client.metrics.total_checks % 10 == 0:
+                        logger.info(
+                            "📊 [%s] %s",
+                            client.config.hostname,
+                            client.metrics.summary(),
+                        )
+
+                self._interruptible_sleep(interval_seconds)
+
+        except Exception as exc:
+            logger.exception("Erreur fatale non gérée dans le service multi-DDNS: %s", exc)
+            raise
+
+        finally:
+            for client in self.clients:
+                client.close()
+
+    def _interruptible_sleep(self, seconds: int) -> None:
+        """Attente interruptible tant qu'au moins un client est actif."""
+        end_time = time.monotonic() + seconds
+        while any(client._running for client in self.clients) and time.monotonic() < end_time:
+            time.sleep(min(1, end_time - time.monotonic()))
+
+
 # =============================================================================
 # Factory function (compatibilité)
 # =============================================================================
 
 
-def from_env() -> InfomaniakDDNSClient:
+def from_env_clients() -> list[InfomaniakDDNSClient]:
+    """Crée une liste de clients DDNS depuis les variables d'environnement."""
+    return [InfomaniakDDNSClient(config) for config in DDNSConfig.from_env_list()]
+
+
+def from_env() -> InfomaniakDDNSService:
     """
-    Crée un client DDNS depuis les variables d'environnement.
+    Crée un service DDNS (mono ou multi-domaines) depuis les variables d'environnement.
 
     Returns:
-        Instance configurée du client.
+        Instance configurée du service.
 
     Raises:
         ValueError: Si des variables obligatoires sont manquantes.
     """
-    config = DDNSConfig.from_env()
-    return InfomaniakDDNSClient(config)
+    return InfomaniakDDNSService(from_env_clients())

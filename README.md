@@ -80,9 +80,12 @@ docker compose up -d
 docker run -d \
   --name ddns-infomaniak \
   --restart unless-stopped \
-  -e INFOMANIAK_DDNS_HOSTNAME=ddns.example.com \
-  -e INFOMANIAK_DDNS_USERNAME=votre-username \
-  -e INFOMANIAK_DDNS_PASSWORD=votre-password \
+  -e INFOMANIAK_DDNS_HOSTNAME_1=ddns.example.com \
+  -e INFOMANIAK_DDNS_USERNAME_1=votre-username \
+  -e INFOMANIAK_DDNS_PASSWORD_1=votre-password \
+  -e INFOMANIAK_DDNS_HOSTNAME_2=blog.example.com \
+  -e INFOMANIAK_DDNS_USERNAME_2=votre-username-2 \
+  -e INFOMANIAK_DDNS_PASSWORD_2=votre-password-2 \
   ghcr.io/axioneer-studio/ddns-infomaniak:latest
 ```
 
@@ -100,9 +103,13 @@ pip install -r requirements.txt
 
 # 3. Créer un fichier .env
 cat > .env << EOF
-INFOMANIAK_DDNS_HOSTNAME=ddns.example.com
-INFOMANIAK_DDNS_USERNAME=votre-username
-INFOMANIAK_DDNS_PASSWORD=votre-password
+INFOMANIAK_DDNS_HOSTNAME_1=ddns.example.com
+INFOMANIAK_DDNS_USERNAME_1=votre-username
+INFOMANIAK_DDNS_PASSWORD_1=votre-password
+
+INFOMANIAK_DDNS_HOSTNAME_2=blog.example.com
+INFOMANIAK_DDNS_USERNAME_2=votre-username-2
+INFOMANIAK_DDNS_PASSWORD_2=votre-password-2
 EOF
 
 # 4. Lancer
@@ -117,11 +124,21 @@ python main.py
 
 #### Obligatoires
 
+Mode multi-domaines (recommandé) : utilisez les variables suffixées avec un index `X`.
+
 | Variable | Description | Exemple |
 |----------|-------------|---------|
-| `INFOMANIAK_DDNS_HOSTNAME` | Hostname complet à mettre à jour | `ddns.example.com` |
-| `INFOMANIAK_DDNS_USERNAME` | Identifiant DDNS Infomaniak | `abc123` |
-| `INFOMANIAK_DDNS_PASSWORD` | Mot de passe DDNS | `xyz789` |
+| `INFOMANIAK_DDNS_HOSTNAME_X` | Hostname complet à mettre à jour | `ddns.example.com` |
+| `INFOMANIAK_DDNS_USERNAME_X` | Identifiant DDNS Infomaniak | `abc123` |
+| `INFOMANIAK_DDNS_PASSWORD_X` | Mot de passe DDNS | `xyz789` |
+
+`X` peut être `1`, `2`, `3`, ... sans limite pratique.
+
+Mode simple (legacy) également supporté pour un seul domaine :
+
+- `INFOMANIAK_DDNS_HOSTNAME`
+- `INFOMANIAK_DDNS_USERNAME`
+- `INFOMANIAK_DDNS_PASSWORD`
 
 #### Optionnelles
 
@@ -139,10 +156,14 @@ python main.py
 ### Exemple de fichier `.env`
 
 ```dotenv
-# Obligatoire
-INFOMANIAK_DDNS_HOSTNAME=ddns.example.com
-INFOMANIAK_DDNS_USERNAME=mon-user
-INFOMANIAK_DDNS_PASSWORD=mon-password
+# Obligatoire (multi-domaines)
+INFOMANIAK_DDNS_HOSTNAME_1=ddns.example.com
+INFOMANIAK_DDNS_USERNAME_1=mon-user
+INFOMANIAK_DDNS_PASSWORD_1=mon-password
+
+INFOMANIAK_DDNS_HOSTNAME_2=blog.example.com
+INFOMANIAK_DDNS_USERNAME_2=mon-user-2
+INFOMANIAK_DDNS_PASSWORD_2=mon-password-2
 
 # Optionnel
 DDNS_INTERVAL_SECONDS=300
