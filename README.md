@@ -295,7 +295,7 @@ docker run -e DDNS_LOG_LEVEL=DEBUG ... ghcr.io/axioneer-studio/ddns-infomaniak:l
 ## 📝 Changelog
 
 
-## v2.1.0
+### v2.1.0
 
 - 🚀 **Support multi-domaines illimité** :
   - Utilisez `INFOMANIAK_DDNS_HOSTNAME_X`, `INFOMANIAK_DDNS_USERNAME_X`, `INFOMANIAK_DDNS_PASSWORD_X` (X = 1, 2, 3, ...)
